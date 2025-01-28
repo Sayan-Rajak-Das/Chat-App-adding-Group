@@ -1,0 +1,273 @@
+import React, { useState, useEffect } from "react";
+import Sidebar from "./Sidebar";
+import Header from "./Header";
+import MessageList from "./MessageList";
+import MessageInput from "./MessageInput";
+import WelcomePage from "./WelcomePage";
+import api from "../services/api";
+import { toast } from "react-toastify";
+import { io } from "socket.io-client";
+
+const socket = io(
+  import.meta.env.MODE === "development"
+    ? "http://localhost:5001"
+    : window.location.origin,
+  { withCredentials: true }
+);
+
+const ChatRoom = () => {
+  const [users, setUsers] = useState([]);
+  const [onlineUsers, setOnlineUsers] = useState([]);
+  const [rooms, setRooms] = useState([]);
+  const [activeChat, setActiveChat] = useState(null);
+  const [messages, setMessages] = useState([]);
+  const [isSidebarVisible, setIsSidebarVisible] = useState(true);
+  const [loggedInUser, setLoggedInUser] = useState(null);
+
+  useEffect(() => {
+    socket.on("newMessage", (message) => {
+      // Check if the message is already in the state
+      setMessages((prevMessages) => {
+        // Prevent adding the message if it's already in the state
+        const isDuplicate = prevMessages.some(msg => msg._id === message._id);
+        if (isDuplicate) return prevMessages; // Don't add the duplicate message
+        return [...prevMessages, message]; // Add the new message
+      });
+    });
+  
+    // Clean up the socket listener when the component unmounts
+    return () => {
+      socket.off("newMessage");
+    };
+  }, []);
+
+  
+  useEffect(() => {
+    socket.on("updateOnlineUsers", (users) => {
+      setOnlineUsers(users);
+    });
+    return () => {
+      socket.off("updateOnlineUsers");
+    };
+  }, []);
+
+  useEffect(() => {
+    const fetchLoggedInUser = async () => {
+      try {
+        const response = await api.get("/auth/check");
+        setLoggedInUser(response.data);
+        socket.emit("join", response.data._id);
+      } catch (error) {
+        console.error("Error fetching logged-in user:", error.response?.data || error.message);
+        if (error.response?.status === 401) {
+          toast.error("Session expired. Please log in again.");
+          handleLogout();
+        }
+      }
+    };
+
+    fetchLoggedInUser();
+  }, []);
+
+  useEffect(() => {
+    if (loggedInUser) {
+      const fetchUsers = async () => {
+        try {
+          const response = await api.get("/messages/users");
+          setUsers(response.data);
+        } catch (error) {
+          console.error("Error fetching users:", error.response?.data || error.message);
+        }
+      };
+
+      fetchUsers();
+    }
+  }, [loggedInUser]);
+
+  useEffect(() => {
+    const fetchRooms = async () => {
+      try {
+        const response = await api.get("/messages/rooms");
+        setRooms(response.data);
+      } catch (error) {
+        console.error("Error fetching rooms:", error.response?.data || error.message);
+      }
+    };
+
+    fetchRooms();
+  }, [loggedInUser]);
+
+  useEffect(() => {
+    if (activeChat && loggedInUser) {
+      const fetchMessages = async () => {
+        try {
+          const endpoint = activeChat.room
+            ? `/messages/${activeChat.room}?room=true`
+            : `/messages/${activeChat._id}`;
+          const response = await api.get(endpoint);
+          setMessages(response.data);
+
+          if (activeChat.room) {
+            socket.emit("joinRoom", activeChat.room);
+          }
+        } catch (error) {
+          console.error("Error fetching messages:", error.response?.data || error.message);
+        }
+      };
+
+      fetchMessages();
+    }
+  }, [activeChat, loggedInUser]);
+
+  const handleSendMessage = async (text, image) => {
+    try {
+      const body = { text, image };
+      if (activeChat.room) {
+        body.room = activeChat.room;
+      }
+
+      const response = await api.post(`/messages/send/${activeChat._id}`, body);
+
+      setMessages((prevMessages) => [
+        ...prevMessages,
+        { ...response.data, senderId: { ...loggedInUser } },
+      ]);
+
+      socket.emit("sendMessage", {
+        ...response.data,
+        receiverId: activeChat._id,
+      });
+    } catch (error) {
+      console.error("Error sending message:", error.response?.data || error.message);
+      toast.error("Failed to send the message. Please try again.");
+    }
+  };
+
+  const addRoom = async (roomName) => {
+    try {
+      const response = await api.post("/messages/rooms", { roomName });
+      setRooms((prevRooms) => [...prevRooms, response.data.roomName]);
+      toast.success("Room created successfully!");
+    } catch (error) {
+      console.error("Error creating room:", error.response?.data || error.message);
+      if (error.response?.status === 400) {
+        toast.error("Room creation failed. Room name might already exist.");
+      } else {
+        toast.error("An error occurred while creating the room.");
+      }
+    }
+  };
+
+  const deleteRoom = async (roomName) => {
+    try {
+      await api.delete(`/messages/rooms/${roomName}`);
+      setRooms((prevRooms) => prevRooms.filter((room) => room !== roomName));
+      toast.success("Room deleted successfully!");
+    } catch (error) {
+      console.error("Error deleting room:", error.response?.data || error.message);
+      toast.error("Failed to delete the room. Please try again.");
+    }
+  };
+
+  const addContactToRoom = async (roomName, userId) => {
+    try {
+      await api.post("/messages/rooms/add-contact", { roomName, userId });
+      toast.success("Contact added to room successfully!");
+    } catch (error) {
+      console.error("Error adding contact to room:", error.response?.data || error.message);
+      toast.error("Failed to add the contact to the room.");
+    }
+  };
+
+  const removeContactFromRoom = async (roomName, userId) => {
+    try {
+      await api.post("/messages/rooms/remove-contact", { roomName, userId });
+      toast.success("Contact removed from room successfully!");
+    } catch (error) {
+      console.error("Error removing contact from room:", error.response?.data || error.message);
+      toast.error("Failed to remove the contact from the room.");
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await api.post("/auth/logout");
+      localStorage.clear();
+      socket.disconnect();
+      toast.success("Logged out successfully!");
+      window.location.href = "/login";
+    } catch (error) {
+      console.error("Error during logout:", error.response?.data || error.message);
+      toast.error("An error occurred during logout. Please try again.");
+    }
+  };
+
+  const handleSelectChat = (chat) => {
+    setActiveChat(chat);
+    if (window.innerWidth < 768) {
+      setIsSidebarVisible(false);
+    }
+  };
+
+  const handleBack = () => {
+    setActiveChat(null);
+    if (window.innerWidth < 768) {
+      setIsSidebarVisible(true);
+    }
+  };
+
+  return (
+    <div className="d-flex vh-100">
+      {isSidebarVisible && (
+        <div
+          className="d-flex flex-column"
+          style={{
+            width: window.innerWidth >= 768 ? "280px" : "100%",
+            borderRight: window.innerWidth >= 768 ? "2px solid #e0e0e0" : "none",
+            backgroundColor: "#f8f9fa",
+            overflow: "hidden",
+          }}
+        >
+          <Sidebar
+            users={users}
+            onlineUsers={onlineUsers}
+            rooms={rooms}
+            onSelectChat={handleSelectChat}
+            addRoom={addRoom}
+            deleteRoom={deleteRoom}
+            addContactToRoom={addContactToRoom}
+            removeContactFromRoom={removeContactFromRoom}
+          />
+        </div>
+      )}
+
+      <div className="flex-grow-1 d-flex flex-column">
+        {activeChat ? (
+          <>
+            <Header
+              title={activeChat?.room || activeChat?.fullName || "Chat"}
+              isOnline={onlineUsers.includes(activeChat?._id)}
+              onBack={handleBack}
+              onLogout={handleLogout}
+              profilePic={activeChat?.profilePic}
+            />
+            <div id="chat-messages" className="flex-grow-1 overflow-auto px-3 bg-light">
+              <MessageList messages={messages} loggedInUserId={loggedInUser?._id} />
+            </div>
+            <MessageInput onSendMessage={handleSendMessage} />
+          </>
+        ) : window.innerWidth >= 768 ? (
+          <WelcomePage />
+        ) : (
+          <div className="flex-grow-1 d-flex align-items-center justify-content-center"
+            style={{background: "linear-gradient(135deg, #4facfe, #00f2fe)",}}
+          >
+            <p className="text-muted">Select a chat to start messaging.</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default ChatRoom;
