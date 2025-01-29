@@ -2,6 +2,8 @@
 
 # Chat App
 
+![Screenshot 1](./screenshots/img.png)  
+
 This is a simple chat application where users can log in, register, and chat in real-time. Users can also join rooms and chat with others.
 
 ## Project Screenshots
