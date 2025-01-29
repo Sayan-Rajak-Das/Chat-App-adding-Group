@@ -6,11 +6,11 @@ This is a simple chat application where users can log in, register, and chat in 
 
 ## Project Screenshots
 
-![Screenshot 1](./screenshots/img1.png)  
-![Screenshot 2](./screenshots/img2.png)  
-![Screenshot 3](./screenshots/img3.png)  
-![Screenshot 4](./screenshots/img4.png)  
-![Screenshot 5](./screenshots/img5.png)
+![Screenshot 1](./screenshots/img 1.png)  
+![Screenshot 2](./screenshots/img 2.png)  
+![Screenshot 3](./screenshots/img 3.png)  
+![Screenshot 4](./screenshots/img 4.png)  
+![Screenshot 5](./screenshots/img 5.png)
 
 ## Project Screenshots
 
