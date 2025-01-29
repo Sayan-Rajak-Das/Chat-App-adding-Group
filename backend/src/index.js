@@ -116,16 +116,7 @@ if(process.env.NODE_ENV === "production") {
   });
 }
 
-// Database Connection
-  // connectDB()
-  // .then(() => {
-  //   console.log("Database connected successfully!");
-  // })
-  // .catch((error) => {
-  //   console.error("Database connection error:", error.message);
-  // });
 
-// Start Server
 server.listen(PORT, () => {
   console.log(`Server is running on PORT: ${PORT}`);
   connectDB();

@@ -1,6 +1,17 @@
 import React from "react";
 import { User } from "lucide-react";
 
+function getIstTime(timestamp) {
+  const date = new Date(timestamp);
+  const options = {
+    timeZone: "Asia/Kolkata", // IST timezone
+    hour: "numeric",
+    minute: "numeric",
+    hour12: true,
+  };
+  return new Intl.DateTimeFormat("en-IN", options).format(date);
+}
+
 const MessageList = ({ messages, loggedInUserId }) => {
   return (
     <div
@@ -13,8 +24,7 @@ const MessageList = ({ messages, loggedInUserId }) => {
         return (
           <div
             key={`${message._id}-${index}`} // Ensure unique keys
-            className={`d-flex mb-3 ${isLoggedInUser ? "justify-content-end" : "justify-content-start"
-              }`}
+            className={`d-flex mb-3 ${isLoggedInUser ? "justify-content-end" : "justify-content-start"}`}
           >
             {/* Profile Picture for Other Users */}
             {!isLoggedInUser && message.senderId && (
@@ -38,25 +48,44 @@ const MessageList = ({ messages, loggedInUserId }) => {
             )}
 
             {/* Message Bubble */}
-            <div
-              className={`p-2 rounded shadow-sm ${isLoggedInUser
-                ? "bg-primary text-white text-end"
-                : "bg-light text-dark text-start"
-                }`}
-              style={{ maxWidth: "75%" }}
-            >
-              {message.text}
+            <div className="d-flex flex-column">
+              <div
+                className={`p-2 rounded shadow-sm ${isLoggedInUser
+                  ? "bg-primary text-white text-end"
+                  : "bg-light text-dark text-start"}`}
+                style={{
+                  maxWidth: "100%", // Restrict maximum width of the bubble
+                  // minWidth: "50px", // Ensure a minimum width for short text
+                  wordWrap: "break-word", // Wrap text properly
+                  overflowWrap: "break-word", // Handle long unbroken strings
+                  lineHeight: "1.5", // Improve readability
+                  padding: "8px 12px", // Adjust padding for a better look
+                  textAlign: "left", // Ensure text alignment inside the bubble
+                }}
+              >
+                {message.text}
+              </div>
+
+              <p
+                className="text-muted small mt-1"
+                style={{
+                  alignSelf: isLoggedInUser ? "flex-end" : "flex-start",
+                  margin: 0, // Reset margin for consistent spacing
+                }}
+              >
+                {getIstTime(message.createdAt)}
+              </p>
             </div>
 
             {/* Profile Picture for Logged-In User */}
             {isLoggedInUser && (
-              <div className="me-2">
+              <div className="ms-2">
                 {message.senderId.profilePic ? (
                   <img
                     src={message.senderId.profilePic}
                     alt={message.senderId.fullName || "User"}
                     className="rounded-circle shadow-sm"
-                    style={{ width: "40px", height: "40px", marginLeft: "6px" }}
+                    style={{ width: "40px", height: "40px" }}
                   />
                 ) : (
                   <div

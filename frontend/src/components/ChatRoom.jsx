@@ -6,14 +6,8 @@ import MessageInput from "./MessageInput";
 import WelcomePage from "./WelcomePage";
 import api from "../services/api";
 import { toast } from "react-toastify";
-import { io } from "socket.io-client";
+import socket from "../services/socket.js";
 
-const socket = io(
-  import.meta.env.MODE === "development"
-    ? "http://localhost:5001"
-    : window.location.origin,
-  { withCredentials: true }
-);
 
 const ChatRoom = () => {
   const [users, setUsers] = useState([]);
@@ -26,16 +20,14 @@ const ChatRoom = () => {
 
   useEffect(() => {
     socket.on("newMessage", (message) => {
-      // Check if the message is already in the state
       setMessages((prevMessages) => {
         // Prevent adding the message if it's already in the state
         const isDuplicate = prevMessages.some(msg => msg._id === message._id);
         if (isDuplicate) return prevMessages; // Don't add the duplicate message
-        return [...prevMessages, message]; // Add the new message
+        return [...prevMessages, message];    // Add the new message
       });
     });
   
-    // Clean up the socket listener when the component unmounts
     return () => {
       socket.off("newMessage");
     };
