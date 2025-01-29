@@ -1,5 +1,6 @@
 import User from "../models/user.model.js";
 import Message from "../models/message.model.js";
+import Room from "../models/room.model.js";
 import cloudinary from "../lib/cloudinary.js";
 
 // Fetch users for sidebar (excluding the logged-in user)
@@ -19,7 +20,10 @@ export const getUsersForSidebar = async (req, res) => {
 export const getRooms = async (req, res) => {
   try {
     const userId = req.user._id;
-    const rooms = await Message.distinct("room", { members: userId }); // Fetch rooms where the user is a member
+    const rooms = await Room.find({ users: userId })
+      .select("-__v")                                       // Exclude Mongoose version key
+      .lean();                                              // Optimize performance by returning plain objects
+
     res.status(200).json(rooms);
   } catch (error) {
     console.error("Error fetching rooms:", error.message);
@@ -42,14 +46,16 @@ export const createRoom = async (req, res) => {
       return res.status(400).json({ error: "Room already exists" });
     }
 
-    await Message.create({
-      room: roomName,
-      text: "Room created!",
-      senderId: req.user._id,
-      members: [req.user._id], // Add the creator as the first member
+    // Create new room
+    const newRoom = await Room.create({
+      name: roomName,
+      users: [req.user._id],
     });
 
-    res.status(201).json({ message: "Room created successfully", roomName });
+    return res.status(201).json({
+      message: "Room created successfully",
+      room: newRoom, // Return the created room details
+    });
   } catch (error) {
     console.error("Error creating room:", error.message);
     res.status(500).json({ error: "Internal server error" });
@@ -62,8 +68,18 @@ export const deleteRoom = async (req, res) => {
   const { roomName } = req.params;
 
   try {
+    const room = await Room.findOne({ name: roomName });
+
+    if (!room) {
+      return res.status(404).json({ error: "Room not found" });
+    }
+
     // Delete all messages associated with the room
-    await Message.deleteMany({ room: roomName });
+    await Message.deleteMany({ roomId: room._id });
+
+    // Delete the room itself
+    await Room.deleteOne({ _id: room._id });
+
     res.status(200).json({ message: "Room deleted successfully" });
   } catch (error) {
     console.error("Error deleting room:", error.message);
@@ -74,17 +90,17 @@ export const deleteRoom = async (req, res) => {
 // Fetch messages for a specific user or room
 export const getMessages = async (req, res) => {
   try {
-    const { id: chatId } = req.params; // Room ID or Contact ID
+    const { id: chatId } = req.params;                    // Room ID or Contact ID
     const myId = req.user._id;
 
     let messages;
 
     if (req.query.room) {
       // Fetch messages for a room (group chat)
-      messages = await Message.find({ room: chatId }).populate(
-        "senderId",
-        "fullName profilePic"
-      );
+      messages = await Message.find({ roomId: chatId })
+        .populate("senderId", "fullName profilePic")
+        .sort({ createdAt: 1 })                           // Sort messages in order
+        .lean();
     } else {
       // Fetch 1-to-1 messages
       messages = await Message.find({
@@ -94,7 +110,9 @@ export const getMessages = async (req, res) => {
         ],
       })
         .populate("senderId", "fullName profilePic") // Populate sender details
-        .populate("receiverId", "fullName profilePic"); // Populate receiver details
+        .populate("receiverId", "fullName profilePic") // Populate receiver details
+        .sort({ createdAt: 1 }) // Sort messages in order
+        .lean();
     }
 
     res.status(200).json(messages);
@@ -107,32 +125,36 @@ export const getMessages = async (req, res) => {
 // Send a message to a specific user or room
 export const sendMessage = async (req, res) => {
   try {
-    const { text, image, room } = req.body; // Room is optional for group chat
-    const { id: receiverId } = req.params; // Receiver ID for 1-to-1 chat
+    const { text, image, room } = req.body;     // Room is optional for group chat
+    const { id: receiverId } = req.params;      // Receiver ID for 1-to-1 chat
     const senderId = req.user._id;
 
-    let imageUrl;
+    let imageUrl = null;
+
     if (image) {
-      // Upload base64 image to Cloudinary
-      const uploadResponse = await cloudinary.uploader.upload(image);
-      imageUrl = uploadResponse.secure_url;
+      try {
+        const uploadResponse = await cloudinary.uploader.upload(image);
+        imageUrl = uploadResponse.secure_url;
+      } catch (uploadError) {
+        console.error("Error uploading image:", uploadError);
+        return res.status(500).json({ error: "Image upload failed", details: uploadError.message });
+      }
     }
 
     const newMessageData = {
       senderId,
       text,
-      image: imageUrl || null,
+      image: imageUrl,
     };
 
     // Determine if it's a room message or 1-to-1 message
     if (room) {
-      newMessageData.room = room; // Group chat
+      newMessageData.roomId = room;                 // Group chat
     } else {
-      newMessageData.receiverId = receiverId; // 1-to-1 chat
+      newMessageData.receiverId = receiverId;       // 1-to-1 chat
     }
 
-    const newMessage = new Message(newMessageData);
-    await newMessage.save();
+    const newMessage = await Message.create(newMessageData);
 
     res.status(201).json(newMessage);
   } catch (error) {
@@ -143,27 +165,27 @@ export const sendMessage = async (req, res) => {
 
 // Add a contact to a room
 export const addContactToRoom = async (req, res) => {
-  const { roomName, userId } = req.body;
+  const { roomId, userId } = req.body;
 
-  if (!roomName || !userId) {
-    return res.status(400).json({ error: "Room name and user ID are required" });
+  if (!roomId || !userId) {
+    return res.status(400).json({ error: "Room ID and user ID are required" });
   }
 
   try {
-    const room = await Message.findOne({ room: roomName });
+    const room = await Room.findById(roomId);
     if (!room) {
       return res.status(404).json({ error: "Room not found" });
     }
 
     // Add the user to the room if they are not already a member
-    if (!room.members.includes(userId)) {
-      room.members.push(userId);
+    if (!room.users.includes(userId)) {
+      room.users.push(userId);
       await room.save();
     }
 
     // Notify the user being added to the room
-    const io = req.app.get("io"); // Get the Socket.IO instance
-    io.to(userId).emit("roomAdded", roomName); // Emit the room addition event
+    const io = req.app.get("io");                     // Get the Socket.IO instance
+    io.to(userId).emit("roomAdded", roomId);        // Emit the room addition event
 
     res.status(200).json({ message: "Contact added to room successfully" });
   } catch (error) {
@@ -175,25 +197,25 @@ export const addContactToRoom = async (req, res) => {
 
 // Remove a contact from a room
 export const removeContactFromRoom = async (req, res) => {
-  const { roomName, userId } = req.body;
+  const { roomId, userId } = req.body;
 
-  if (!roomName || !userId) {
-    return res.status(400).json({ error: "Room name and user ID are required" });
+  if (!roomId || !userId) {
+    return res.status(400).json({ error: "Room ID and user ID are required" });
   }
 
   try {
-    const room = await Message.findOne({ room: roomName });
+    const room = await Room.findById(roomId);
     if (!room) {
       return res.status(404).json({ error: "Room not found" });
     }
 
     // Remove the user from the room's members list
-    room.members = room.members.filter((member) => member.toString() !== userId);
+    room.users = room.users.filter((member) => member.toString() !== userId);
     await room.save();
 
     // Notify the user being removed from the room
     const io = req.app.get("io"); // Get the Socket.IO instance
-    io.to(userId).emit("roomRemoved", roomName); // Emit the room removal event
+    io.to(userId).emit("roomRemoved", roomId); // Emit the room removal event
 
     res.status(200).json({ message: "Contact removed from room successfully" });
   } catch (error) {

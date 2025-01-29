@@ -5,27 +5,30 @@ const messageSchema = new mongoose.Schema(
     senderId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
-      required: true,
+      required: true,  // Sender of the message
     },
     receiverId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "User", // For 1-to-1 communication
+      ref: "User",  
+      required: function () {
+        return !this.roomId;  // receiverId is required if it's not a room message
+      },
     },
-    room: {
-      type: String,
+    roomId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Room",  
+      required: function () {
+        return !this.receiverId;  // roomId is required if it's not a 1-to-1 message
+      },
     },
     text: {
       type: String,
+      required: true,
     },
     image: {
       type: String,
+      default: "",  
     },
-    members: [
-      {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "User", // List of user IDs who are members of the room
-      },
-    ],
   },
   { timestamps: true }
 );
