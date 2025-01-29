@@ -42,7 +42,7 @@ const Sidebar = ({
   const handleAddContact = async () => {
     if (selectedRoom && selectedUser) {
       try {
-        await addContactToRoom(selectedRoom, selectedUser);
+        await addContactToRoom(selectedRoom._id, selectedUser);
         setSelectedUser(""); // Reset user selection after adding
       } catch (error) {
         console.error("Error adding contact to room:", error.message);
@@ -54,7 +54,7 @@ const Sidebar = ({
   const handleRemoveContact = async () => {
     if (selectedRoom && selectedUser) {
       try {
-        await removeContactFromRoom(selectedRoom, selectedUser);
+        await removeContactFromRoom(selectedRoom._id, selectedUser);
         setSelectedUser(""); // Reset user selection after removing
       } catch (error) {
         console.error("Error removing contact from room:", error.message);
@@ -123,14 +123,14 @@ const Sidebar = ({
                     }}
                   >
                     <div
-                      onClick={() => onSelectChat({ room })}
+                      onClick={() => onSelectChat(room)}
                       className="d-flex align-items-center flex-grow-1"
                     >
                       <Users className="text-secondary me-2" />
-                      <span>{room}</span>
+                      <span>{room.name}</span>
                     </div>
                     <button
-                      onClick={() => deleteRoom(room)}
+                      onClick={() => deleteRoom(room._id)}
                       className="btn btn-sm btn-danger"
                     >
                       <Trash2 size={16} />
@@ -164,14 +164,17 @@ const Sidebar = ({
             <h2 className="h6 mt-4 text-light">Manage Room Contacts</h2>
             <div className="mb-2">
               <select
-                value={selectedRoom}
-                onChange={(e) => setSelectedRoom(e.target.value)}
+                value={selectedRoom?._id || ""}
+                onChange={(e) => {
+                  const selected = rooms.find(room => room._id === e.target.value);
+                  setSelectedRoom(selected);
+                }}
                 className="form-select mb-2"
               >
                 <option value="">Select a room</option>
                 {rooms.map((room, index) => (
-                  <option key={index} value={room}>
-                    {room}
+                  <option key={index} value={room._id}>
+                    {room.name}
                   </option>
                 ))}
               </select>

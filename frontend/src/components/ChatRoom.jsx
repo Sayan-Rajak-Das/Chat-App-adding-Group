@@ -138,7 +138,7 @@ const ChatRoom = () => {
   const addRoom = async (roomName) => {
     try {
       const response = await api.post("/messages/rooms", { roomName });
-      setRooms((prevRooms) => [...prevRooms, response.data.roomName]);
+      setRooms((prevRooms) => [...prevRooms, response.data.room]);
       toast.success("Room created successfully!");
     } catch (error) {
       console.error("Error creating room:", error.response?.data || error.message);
@@ -150,10 +150,12 @@ const ChatRoom = () => {
     }
   };
 
-  const deleteRoom = async (roomName) => {
+  const deleteRoom = async (roomId) => {
+    console.log("Deleting room with ID:", roomId);
+
     try {
-      await api.delete(`/messages/rooms/${roomName}`);
-      setRooms((prevRooms) => prevRooms.filter((room) => room !== roomName));
+      await api.delete(`/messages/rooms/${roomId}`);
+      setRooms((prevRooms) => prevRooms.filter((room) => room._id !== roomId));
       toast.success("Room deleted successfully!");
     } catch (error) {
       console.error("Error deleting room:", error.response?.data || error.message);

@@ -16,7 +16,7 @@ const router = express.Router();
 router.get("/users", protectRoute, getUsersForSidebar);
 router.get("/rooms", protectRoute, getRooms);
 router.post("/rooms", protectRoute, createRoom); // Create a new room
-router.delete("/rooms/:roomName", protectRoute, deleteRoom); // Delete a room
+router.delete("/rooms/:roomId", protectRoute, deleteRoom); // Delete a room
 router.post("/rooms/add-contact", protectRoute, addContactToRoom); // Add contact to a room
 router.post("/rooms/remove-contact", protectRoute, removeContactFromRoom); // Remove contact from a room
 router.get("/:id", protectRoute, getMessages);

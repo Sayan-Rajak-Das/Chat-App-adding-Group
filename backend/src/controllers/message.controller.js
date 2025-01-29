@@ -24,6 +24,8 @@ export const getRooms = async (req, res) => {
       .select("-__v")                                       // Exclude Mongoose version key
       .lean();                                              // Optimize performance by returning plain objects
 
+    console.log(`User ${userId} is in rooms:`, rooms);
+
     res.status(200).json(rooms);
   } catch (error) {
     console.error("Error fetching rooms:", error.message);
@@ -41,7 +43,7 @@ export const createRoom = async (req, res) => {
   }
 
   try {
-    const existingRoom = await Message.findOne({ room: roomName });
+    const existingRoom = await Room.findOne({ name: roomName });
     if (existingRoom) {
       return res.status(400).json({ error: "Room already exists" });
     }
@@ -65,10 +67,16 @@ export const createRoom = async (req, res) => {
 
 // Delete a room
 export const deleteRoom = async (req, res) => {
-  const { roomName } = req.params;
-
+  const { roomId } = req.params;
+  console.log("Deleting room with ID:", roomId);
   try {
-    const room = await Room.findOne({ name: roomName });
+    if (!mongoose.Types.ObjectId.isValid(roomId)) {
+      return res.status(400).json({ error: "Invalid Room ID" });
+    }
+
+    const roomObjectId = new mongoose.Types.ObjectId(roomId);
+
+    const room = await Room.findById(roomObjectId);
 
     if (!room) {
       return res.status(404).json({ error: "Room not found" });
@@ -78,7 +86,7 @@ export const deleteRoom = async (req, res) => {
     await Message.deleteMany({ roomId: room._id });
 
     // Delete the room itself
-    await Room.deleteOne({ _id: room._id });
+    await Room.findByIdAndDelete(roomId);
 
     res.status(200).json({ message: "Room deleted successfully" });
   } catch (error) {
