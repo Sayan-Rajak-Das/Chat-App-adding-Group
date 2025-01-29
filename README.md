@@ -1,6 +1,3 @@
-Here’s an updated version of the **README.md** file with the requested changes:
-
----
 
 # Chat App
 
