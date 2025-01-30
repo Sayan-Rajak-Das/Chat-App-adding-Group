@@ -23,8 +23,8 @@ const ChatRoom = () => {
       setMessages((prevMessages) => {
         // Prevent adding the message if it's already in the state
         const isDuplicate = prevMessages.some(msg => msg._id === message._id);
-        if (isDuplicate) return prevMessages; // Don't add the duplicate message
-        return [...prevMessages, message];    // Add the new message
+        if (isDuplicate) return prevMessages;                                          // Don't add the duplicate message
+        return [...prevMessages, message];    
       });
     });
   
@@ -94,13 +94,13 @@ const ChatRoom = () => {
       const fetchMessages = async () => {
         try {
           const endpoint = activeChat.room
-            ? `/messages/${activeChat.room}?room=true`
+            ? `/messages/${activeChat._id}?room=true`
             : `/messages/${activeChat._id}`;
           const response = await api.get(endpoint);
           setMessages(response.data);
 
           if (activeChat.room) {
-            socket.emit("joinRoom", activeChat.room);
+            socket.emit("joinRoom", activeChat._id);
           }
         } catch (error) {
           console.error("Error fetching messages:", error.response?.data || error.message);
@@ -115,15 +115,18 @@ const ChatRoom = () => {
     try {
       const body = { text, image };
       if (activeChat.room) {
-        body.room = activeChat.room;
+        body.room = activeChat._id;
       }
 
       const response = await api.post(`/messages/send/${activeChat._id}`, body);
 
-      setMessages((prevMessages) => [
-        ...prevMessages,
-        { ...response.data, senderId: { ...loggedInUser } },
-      ]);
+      if (!activeChat.room) {
+        // Only add locally for 1-to-1 chats, as room messages are handled by Socket.IO
+        setMessages((prevMessages) => [
+          ...prevMessages,
+          { ...response.data, senderId: { ...loggedInUser } },
+        ]);
+      }
 
       socket.emit("sendMessage", {
         ...response.data,
@@ -163,9 +166,9 @@ const ChatRoom = () => {
     }
   };
 
-  const addContactToRoom = async (roomName, userId) => {
+  const addContactToRoom = async (roomId, userId) => {
     try {
-      await api.post("/messages/rooms/add-contact", { roomName, userId });
+      await api.post("/messages/rooms/add-contact", { roomId, userId });
       toast.success("Contact added to room successfully!");
     } catch (error) {
       console.error("Error adding contact to room:", error.response?.data || error.message);
@@ -173,9 +176,9 @@ const ChatRoom = () => {
     }
   };
 
-  const removeContactFromRoom = async (roomName, userId) => {
+  const removeContactFromRoom = async (roomId, userId) => {
     try {
-      await api.post("/messages/rooms/remove-contact", { roomName, userId });
+      await api.post("/messages/rooms/remove-contact", { roomId, userId });
       toast.success("Contact removed from room successfully!");
     } catch (error) {
       console.error("Error removing contact from room:", error.response?.data || error.message);
@@ -239,7 +242,7 @@ const ChatRoom = () => {
         {activeChat ? (
           <>
             <Header
-              title={activeChat?.room || activeChat?.fullName || "Chat"}
+              title={activeChat?.room || activeChat?.name || activeChat?.fullName || "Chat"}
               isOnline={onlineUsers.includes(activeChat?._id)}
               onBack={handleBack}
               onLogout={handleLogout}

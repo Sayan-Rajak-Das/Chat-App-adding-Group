@@ -123,7 +123,7 @@ const Sidebar = ({
                     }}
                   >
                     <div
-                      onClick={() => onSelectChat(room)}
+                      onClick={() => onSelectChat({ ...room, room: room.name })}
                       className="d-flex align-items-center flex-grow-1"
                     >
                       <Users className="text-secondary me-2" />

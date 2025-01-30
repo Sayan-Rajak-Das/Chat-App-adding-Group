@@ -2,6 +2,7 @@ import User from "../models/user.model.js";
 import Message from "../models/message.model.js";
 import Room from "../models/room.model.js";
 import cloudinary from "../lib/cloudinary.js";
+import mongoose from "mongoose";
 
 // Fetch users for sidebar (excluding the logged-in user)
 export const getUsersForSidebar = async (req, res) => {
@@ -162,7 +163,22 @@ export const sendMessage = async (req, res) => {
       newMessageData.receiverId = receiverId;       // 1-to-1 chat
     }
 
-    const newMessage = await Message.create(newMessageData);
+    let newMessage = await Message.create(newMessageData);
+
+    // Populate the sender details (fixing the missing profile picture issue)
+    newMessage = await newMessage.populate("senderId", "fullName profilePic");
+
+    // Emit the message with sender details
+    const io = req.app.get("io");
+    const onlineUsers = req.app.get("onlineUsers");
+    if (room) {
+      io.to(room).emit("newMessage", newMessage);
+    } else {
+      const receiverSocketId = onlineUsers.get(receiverId);
+      if (receiverSocketId) {
+        io.to(receiverSocketId).emit("newMessage", newMessage);
+      }
+    }
 
     res.status(201).json(newMessage);
   } catch (error) {

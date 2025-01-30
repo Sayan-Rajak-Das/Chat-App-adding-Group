@@ -36,14 +36,15 @@ app.use(
 );
 
 // Attach Socket.IO instance to app
-app.set("io", io); // Makes it available in controllers
+app.set("io", io); 
 
 // Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/messages", messageRoutes);
 
 // Socket.IO Logic
-const onlineUsers = new Map(); // Map to track online users (userId -> socketId)
+const onlineUsers = new Map();                    // Map to track online users (userId -> socketId)
+app.set("onlineUsers", onlineUsers);
 
 io.on("connection", (socket) => {
   console.log("New user connected:", socket.id);
@@ -51,6 +52,7 @@ io.on("connection", (socket) => {
   // Add user to the onlineUsers map
   socket.on("join", (userId) => {
     onlineUsers.set(userId, socket.id); // Map userId to socket ID
+    app.set("onlineUsers", onlineUsers); // Update stored map globally
     io.emit("updateOnlineUsers", Array.from(onlineUsers.keys())); // Emit the updated online users
     console.log("Online Users:", Array.from(onlineUsers.keys()));
   });
