@@ -64,16 +64,27 @@ io.on("connection", (socket) => {
   });
 
   // Handle user typing event
-  socket.on("typing", ({ roomId, userId }) => {
+  socket.on("typing", ({ roomId, receiverId, userId }) => {
     if (roomId) {
-      socket.to(roomId).emit("userTyping", userId); // Broadcast typing event to room
+      socket.to(roomId).emit("userTyping", userId); 
+    } else if (receiverId) {
+      // Typing event for one-to-one chats
+      const receiverSocketId = onlineUsers.get(receiverId);
+      if (receiverSocketId) {
+        io.to(receiverSocketId).emit("userTyping", userId);
+      }
     }
   });
 
   // Handle user stop typing event
-  socket.on("stopTyping", ({ roomId }) => {
+  socket.on("stopTyping", ({ roomId, receiverId }) => {
     if (roomId) {
-      socket.to(roomId).emit("userStopTyping"); // Broadcast stop typing event to room
+      socket.to(roomId).emit("userStopTyping"); 
+    } else if (receiverId) {
+      const receiverSocketId = onlineUsers.get(receiverId);
+      if (receiverSocketId) {
+        io.to(receiverSocketId).emit("userStopTyping");
+      }
     }
   });
 

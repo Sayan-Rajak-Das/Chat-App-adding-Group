@@ -17,6 +17,7 @@ const ChatRoom = () => {
   const [messages, setMessages] = useState([]);
   const [isSidebarVisible, setIsSidebarVisible] = useState(true);
   const [loggedInUser, setLoggedInUser] = useState(null);
+  const [typingUser, setTypingUser] = useState(null);
 
   useEffect(() => {
     socket.on("newMessage", (message) => {
@@ -24,16 +25,16 @@ const ChatRoom = () => {
         // Prevent adding the message if it's already in the state
         const isDuplicate = prevMessages.some(msg => msg._id === message._id);
         if (isDuplicate) return prevMessages;                                          // Don't add the duplicate message
-        return [...prevMessages, message];    
+        return [...prevMessages, message];
       });
     });
-  
+
     return () => {
       socket.off("newMessage");
     };
   }, []);
 
-  
+
   useEffect(() => {
     socket.on("updateOnlineUsers", (users) => {
       setOnlineUsers(users);
@@ -110,6 +111,46 @@ const ChatRoom = () => {
       fetchMessages();
     }
   }, [activeChat, loggedInUser]);
+
+  useEffect(() => {
+    socket.on("userTyping", (userId) => {
+      // console.log("User is typing:", userId);
+      if (userId !== loggedInUser?._id) {
+        const typingUserInfo = users.find((user) => user._id === userId);
+        if (typingUserInfo) {
+          setTypingUser(typingUserInfo.fullName.split(" ")[0]); // Use the first name
+        }
+      }
+    });
+
+    socket.on("userStopTyping", () => {
+      // console.log("User stopped typing");
+      setTypingUser(null);                                      // Clear the typing user
+    });
+
+    return () => {
+      socket.off("userTyping");
+      socket.off("userStopTyping");
+    };
+  }, [loggedInUser]);
+
+
+  const handleTyping = () => {
+    if (activeChat?.room) {
+      socket.emit("typing", { roomId: activeChat._id, userId: loggedInUser?._id });
+    } else {
+      // Typing event for one-to-one chats
+      socket.emit("typing", { receiverId: activeChat._id, userId: loggedInUser?._id });
+    }
+  };
+
+  const handleStopTyping = () => {
+    if (activeChat?.room) {
+      socket.emit("stopTyping", { roomId: activeChat._id });
+    } else {
+      socket.emit("stopTyping", { receiverId: activeChat._id });
+    }
+  };
 
   const handleSendMessage = async (text, image) => {
     try {
@@ -251,13 +292,18 @@ const ChatRoom = () => {
             <div id="chat-messages" className="flex-grow-1 overflow-auto px-3 bg-light">
               <MessageList messages={messages} loggedInUserId={loggedInUser?._id} />
             </div>
-            <MessageInput onSendMessage={handleSendMessage} />
+            <MessageInput
+              onSendMessage={handleSendMessage}
+              onTyping={handleTyping} 
+              onStopTyping={handleStopTyping} 
+              typingUser={typingUser}
+            />
           </>
         ) : window.innerWidth >= 768 ? (
           <WelcomePage />
         ) : (
           <div className="flex-grow-1 d-flex align-items-center justify-content-center"
-            style={{background: "linear-gradient(135deg, #4facfe, #00f2fe)",}}
+            style={{ background: "linear-gradient(135deg, #4facfe, #00f2fe)", }}
           >
             <p className="text-muted">Select a chat to start messaging.</p>
           </div>

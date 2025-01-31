@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Smile } from "lucide-react";
 
-const MessageInput = ({ onSendMessage, onTyping, onStopTyping }) => {
+const MessageInput = ({ onSendMessage, onTyping, onStopTyping, typingUser }) => {
   const [text, setText] = useState("");
   const [isMobileView, setIsMobileView] = useState(window.innerWidth < 768);
   const [showStickers, setShowStickers] = useState(false); 
@@ -80,6 +80,21 @@ const MessageInput = ({ onSendMessage, onTyping, onStopTyping }) => {
         </div>
       )}
 
+      {/* Typing Indicator */}
+      {typingUser && (
+        <div
+          style={{
+            color: "#6b7280",
+            fontStyle: "italic",
+            padding: "5px 10px",
+            fontSize: "14px",
+          }}
+        >
+          {typingUser} is typing...
+        </div>
+      )}
+
+
       {/* Input Section */}
       <form
         onSubmit={handleSend}
@@ -126,7 +141,7 @@ const MessageInput = ({ onSendMessage, onTyping, onStopTyping }) => {
           placeholder="Type a message..."
           value={text}
           onChange={handleInputChange}
-          onBlur={onStopTyping} // Ensure typing stops when input loses focus
+          onBlur={onStopTyping}                   // Stops typing when input loses focus
         />
 
         {/* Send Button */}
